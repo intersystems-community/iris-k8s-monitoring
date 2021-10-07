@@ -1,0 +1,11 @@
+apiVersion: intersystems.com/v1alpha1
+kind: IrisCluster
+metadata:
+  name: iris
+  namespace: iris
+spec:
+  licenseKeySecret:
+    name: iris-license
+  topology:
+    data:
+      image: intersystemsdc/iris-community:2021.1.0.215.0-zpm

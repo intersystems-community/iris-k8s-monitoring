@@ -1,0 +1,65 @@
+promtail:
+  pipelineStages:
+  - cri: {}
+
+loki:
+  config:
+    schema_config:
+      configs:
+      - from: "2021-09-01"
+        index:
+          period: 24h
+          prefix: index_
+        object_store: gcs
+        schema: v11
+        store: boltdb-shipper
+  
+    storage_config:
+      boltdb_shipper:
+        active_index_directory: /data/loki/boltdb-shipper-active
+        cache_location: /data/loki/boltdb-shipper-cache
+        cache_ttl: 24h
+        shared_store: gcs
+      gcs:
+        bucket_name: example-bucket
+
+    table_manager:
+      retention_deletes_enabled: true
+      retention_period: 24h
+    
+    ruler:
+      storage:
+        type: local
+        local:
+          directory: /rules
+      rule_path: /tmp/scratch
+      alertmanager_url: http://alertmanager-operated.monitoring:9093
+      enable_api: true
+      enable_alertmanager_v2: true
+
+  # Loki 2.3 supports `pattern` parser. It's faster and simpler than `regexp`
+  # Note: labels `namespace` and `pod` are set here for simplicity, in demo purposes. You'll rather use labels that IKO sets for IRIS instances
+  ## Check IRIS labels by `kubectl -n iris describe <iris_pod_name>`
+  alerting_groups:
+  - name: iris-logs
+    rules:
+    - alert: High Severity IRIS Error
+      annotations:
+        description: "IRIS High Severity Error"
+      expr: |
+        count_over_time({namespace="iris", pod="iris-data-0"} | regexp `(?P<time>\S+) \((?P<pid>\d+?)\) (?P<severity>\d+) \[(?P<process>\S+)\] (?P<message>.*)` | severity > 1 [2m]) > 0
+      for: 1m
+      labels:
+        cluster: iris
+        origin: loki
+        severity: critical
+    - alert: IRIS Error Log Message
+      annotations:
+        description: "Log Message Containing Error string"
+      expr: |
+        count_over_time({namespace="iris", pod="iris-data-0"} | regexp `(?P<message>.*)` |~ "(?i)error" [2m]) > 0
+      for: 1m
+      labels:
+        cluster: iris
+        origin: loki
+        severity: warning

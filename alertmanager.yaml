@@ -1,0 +1,69 @@
+alertmanager:
+  enabled: true
+  config:
+    global:
+      resolve_timeout: 5m
+      slack_api_url: ''
+    route:
+      group_by: ['...'] # That disables grouping at all
+      repeat_interval: 3m
+      receiver: 'infra'
+      routes:
+      - match:
+          origin: "loki"
+        receiver: 'logs'
+    receivers:
+    - name: 'null'
+    - name: 'infra'
+      slack_configs:
+      - channel: '#iris-in-k8s-alerting'
+        send_resolved: true # Not needed for logs. In that case we create another receiver with 'send_resolved: false'. See 'logs' receiver
+        title: '{{ template "slack.custom.title" . }}'
+        text: '{{ template "slack.custom.text" . }}'
+    - name: 'logs'
+      slack_configs:
+      - channel: '#iris-in-k8s-alerting'
+        send_resolved: false
+        title: '{{ template "slack.custom.title" . }}'
+        text: '{{ template "slack.custom.text" . }}'
+
+  templateFiles:
+    custom_template.tmpl: |-
+      {{ define "slack.custom.title" }}
+      [{{ .Status | toUpper }}{{ if eq .Status "firing" }}:{{ .Alerts.Firing | len }}{{ end }}] {{ .GroupLabels.alertname }}
+      {{ if .CommonLabels.cluster }} Cluster: {{ .CommonLabels.cluster }}{{ end }}
+      {{ if .CommonLabels.namespace }} Namespace: {{ .CommonLabels.namespace }}{{ end }}
+      {{ if .CommonLabels.pod }} Pod: {{ .CommonLabels.pod }}{{ end }}
+      {{ end }}
+      {{/* Color of Slack attachment (appears as line next to alert )*/}}
+      {{ define "slack.custom.color" -}}
+        {{ if eq .Status "firing" -}}
+            {{ if eq .CommonLabels.severity "warning" -}}
+                warning
+            {{- else if eq .CommonLabels.severity "critical" -}}
+                danger
+            {{- else -}}
+                #439FE0
+            {{- end -}}
+        {{ else -}}
+        good
+        {{- end }}
+      {{- end }}
+      {{ define "slack.custom.text" }}
+      {{ range .Alerts }}
+        *Severity:* `{{ .Labels.severity | toUpper }}`
+        {{- if .Annotations.summary }}
+        *Summary:* {{ .Annotations.summary }}
+        {{- end }}
+        {{- if .Annotations.message }}
+        *Alert:* {{ .Annotations.message }}
+        {{- end }}
+        {{- if .Annotations.description }}
+        *Description:* {{ .Annotations.description }}
+        {{- end }}
+        {{- if .Labels.message }}
+         *Message:* {{ .Labels.message }}
+        {{- end }}
+        {{ end }}
+      {{ end }}
+

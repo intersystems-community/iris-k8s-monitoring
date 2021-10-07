@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: iris-license
+  namespace: iris
+data:
+  iris.key: ""

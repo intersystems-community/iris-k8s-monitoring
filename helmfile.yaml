@@ -1,0 +1,129 @@
+helmDefaults:
+  wait: true
+  timeout: 600
+  force: false
+  historyMax: 5
+  createNamespace: true
+  atomic: true
+
+repositories:
+- name: prometheus-community
+  url: https://prometheus-community.github.io/helm-charts
+
+- name: grafana
+  url: https://grafana.github.io/helm-charts
+
+- name: ingress-nginx
+  url: https://kubernetes.github.io/ingress-nginx
+
+- name: jetstack
+  url: https://charts.jetstack.io
+
+releases:
+- name: iris-operator
+  namespace: iris
+  chart: ./iris_operator-3.1.0.94.0/chart/iris-operator/
+  set:
+  - name: operator.registry
+    value: {{ requiredEnv "IKO_REGISTRY" }}
+  - name: operator.repository
+    value: {{ requiredEnv "IKO_REPO" }}
+  - name: operator.version
+    value: {{ requiredEnv "IKO_VERSION" }}
+  hooks:
+  - events: ["postsync"]
+    showlogs: true
+    command: kubectl
+    args: ["apply", "-f", "iris-license.yaml"]
+  - events: ["postsync"]
+    showlogs: true
+    command: kubectl
+    args: ["apply", "-f", "iko.yaml"]
+  - events: ["preuninstall"]
+    showlogs: true
+    command: kubectl
+    args: ["delete", "-f", "iris-license.yaml"]
+  - events: ["preuninstall"]
+    showlogs: true
+    command: kubectl
+    args: ["delete", "-f", "iko.yaml"]
+  - events: ["preuninstall"]
+    showlogs: true
+    command: kubectl
+    args: ["delete", "-n", "iris", "pvc", "-l", "intersystems.com/name=iris"]
+
+- name: prometheus
+  namespace: monitoring
+  chart: prometheus-community/kube-prometheus-stack
+  version: 18.0.3
+  values:
+  - prometheus-values.yaml
+  - prometheus-rules.yaml
+  - alertmanager.yaml
+  set:
+  - name: grafana."grafana\.ini".server.root_url
+    value: http://{{ requiredEnv "DOMAIN" }}/grafana/
+  - name: grafana.ingress.hosts[0]
+    value: {{ requiredEnv "DOMAIN" }}
+  - name: grafana.ingress.tls[0].hosts[0]
+    value: {{ requiredEnv "DOMAIN" }}
+  - name: grafana.adminPassword
+    value: {{ requiredEnv "GRAFANA_PASSWORD" }}
+  - name: alertmanager.config.global.slack_api_url
+    value: {{ requiredEnv "SLACK_API_URL" }}
+  # Grafana dashboards are exported from UI and '\' are replaced by '\\'
+  - name: grafana.dashboards.default.iris.json
+    value: {{ readFile "dashboards/sam-like-dashboard.json" | toYaml | indent 4 }}
+  - name: grafana.dashboards.default.logs.json
+    value: {{ readFile "dashboards/kubernetes-workload-logs.json" | toYaml | indent 4 }}
+  hooks:
+  - events: ["preuninstall"]
+    showlogs: true
+    command: kubectl
+    args: ["delete", "-n", "monitoring", "pvc", "-l", "app=prometheus"]
+
+- name: loki
+  # It's recommended to use loki-distributed in a production environment
+  chart: grafana/loki-stack
+  namespace: logging
+  version: 2.4.1
+  values:
+  - loki-values.yaml
+  set:
+  - name: loki.config.storage_config.gcs.bucket_name
+    value: {{ requiredEnv "BUCKET_NAME" }}
+
+- name: ingress-nginx
+  needs:
+  - prometheus
+  chart: ingress-nginx/ingress-nginx
+  namespace: ingress-nginx
+  version: 4.0.3
+  set:
+  - name: controller.service.loadBalancerIP
+    value: {{ requiredEnv "LOAD_BALANCER_IP" }}
+
+- name: cert-manager
+  chart: jetstack/cert-manager
+  namespace: cert-manager
+  version: v1.5.3
+  set:
+  - name: installCRDs
+    value: true
+  hooks:
+  - events: ["postsync"]
+    showlogs: true
+    command: kubectl
+    args: ["apply", "-f", "lets-encrypt-staging.yaml"]
+  - events: ["postsync"]
+    showlogs: true
+    command: kubectl
+    args: ["apply", "-f", "lets-encrypt-production.yaml"]
+  - events: ["preuninstall"]
+    showlogs: true
+    command: kubectl
+    args: ["delete", "-f", "lets-encrypt-staging.yaml"]
+  - events: ["preuninstall"]
+    showlogs: true
+    command: kubectl
+    args: ["delete", "-f", "lets-encrypt-production.yaml"]

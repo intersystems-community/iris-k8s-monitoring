@@ -1,0 +1,13 @@
+additionalPrometheusRulesMap:
+  iris.rules:
+    groups:
+    - name: iris
+      rules:
+      - alert: IRIS Cache Efficiency Low
+        annotations:
+          description: 'IRIS Cache Efficiency - {{ $value }}'
+          summary: IRIS Cache Efficiency is too low
+        expr: iris_cache_efficiency < 1000
+        for: 1m
+        labels:
+          severity: warning
