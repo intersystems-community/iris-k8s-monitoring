@@ -199,7 +199,7 @@ prometheus   	monitoring   	1       	2021-10-07	deployed	kube-prometheus-stack-1
 ```
 
 ### Note about Certificate
-Visit this page: https://<DOMAIN>/grafana. Set DOMAIN to a value retrieved on [Create Domain Name](#create-domain-name) stage.
+Visit this page: https://\<DOMAIN\>/grafana. Set DOMAIN to a value retrieved on [Create Domain Name](#create-domain-name) stage.
 You should see a warning about **SEC_ERROR_UNKNOWN_ISSUER**. It's due to certificate was issued by [Let's Encrypt (LE) Staging](https://letsencrypt.org/docs/staging-environment/). Such approach is handful on development environments. In production you'll need to replace Staging by Production. For that edit [prometheus-values.yaml](prometheus-values.yaml) file and replace `grafana.ingress.annotations` by `cert-manager.io/cluster-issuer: lets-encrypt-production` value and re-run `helmfile sync`.
 For now just "Accept the Risk and Continue".
 
