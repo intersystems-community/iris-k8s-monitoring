@@ -8,4 +8,4 @@ spec:
     name: iris-license
   topology:
     data:
-      image: intersystemsdc/iris-community:2021.1.0.215.0-zpm
+      image: intersystemsdc/iris-community:2021.1.0.215.3-zpm
